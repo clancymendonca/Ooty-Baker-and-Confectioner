@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "./logger";
 
-const PRISMA_CONNECTION_CODES = new Set(["P1000", "P1001", "P1002", "P1008", "P1017"]);
+const PRISMA_CONNECTION_CODES = new Set(["P1000", "P1001", "P1002", "P1008", "P1011", "P1017", "P2024", "P5011"]);
 
 interface NormalizedError {
   message?: string;

@@ -4,7 +4,7 @@ import { attachAuthSessionCookie, signAuthSessionToken } from "@/lib/session";
 import { logger } from "@/lib/logger";
 import { clearRateLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { loginSchema } from "@/lib/validators/auth";
-
+import { isDatabaseConnectionError } from "@/lib/api-errors";
 function getClientIp(request: NextRequest): string {
   return (
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -85,11 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isConnectionError =
-      error?.code === "P1001" ||
-      error?.code === "P1000" ||
-      error?.name === "PrismaClientInitializationError" ||
-      error?.message?.includes("Can't reach database");
+    const isConnectionError = isDatabaseConnectionError(error);
 
     const isSessionSecretMissing =
       typeof error?.message === "string" &&
