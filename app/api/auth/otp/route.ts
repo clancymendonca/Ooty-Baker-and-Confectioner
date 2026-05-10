@@ -30,17 +30,35 @@ async function sendOTPEmail(email: string, otp: string) {
     },
   });
 
+  const loginUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth`
+    : "https://www.ootybakerconfectioner.com/auth";
+
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: email,
-    subject: "Password Reset OTP - Ooty Baker",
+    subject: "Password Reset OTP - Ooty Baker & Confectioner",
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Password Reset Request</h2>
-        <p>Your OTP for password reset is:</p>
-        <h1 style="color: #40aad1; font-size: 32px; letter-spacing: 4px;">${otp}</h1>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p>If you didn't request this, please ignore this email.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 32px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #007A4D; margin: 0;">Password Reset Request</h2>
+          <p style="color: #555; margin-top: 8px;">You requested to reset your password for the Ooty Baker & Confectioner dashboard.</p>
+        </div>
+        <div style="background: #fff; border-radius: 8px; padding: 24px; border: 1px solid #e0e0e0; text-align: center;">
+          <p style="margin: 0 0 16px; color: #333; font-size: 14px;"><strong>Your OTP for password reset is:</strong></p>
+          <div style="background: #f0f9f5; border: 1px solid #007A4D; border-radius: 6px; padding: 12px; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #007A4D; text-align: center;">
+            ${otp}
+          </div>
+          <p style="color: #888; font-size: 13px; margin-top: 16px;">This OTP will expire in 10 minutes.</p>
+        </div>
+        <div style="text-align: center; margin-top: 24px;">
+          <a href="${loginUrl}" style="background: #007A4D; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+            Return to Login
+          </a>
+        </div>
+        <p style="color: #bbb; font-size: 11px; text-align: center; margin-top: 24px;">
+          If you didn't request this, please ignore this email.
+        </p>
       </div>
     `,
   });
