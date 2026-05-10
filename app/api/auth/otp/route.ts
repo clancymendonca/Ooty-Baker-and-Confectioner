@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserByEmail, updateUserOTP, verifyOTP, updatePassword } from "@/lib/auth";
 import nodemailer from "nodemailer";
+import {
+  getUserByEmail,
+  updateUserOTP,
+  verifyOTP,
+  updatePassword,
+} from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { dbErrorResponse } from "@/lib/api-errors";
 
-// Generate 6-digit OTP
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Send OTP email
 async function sendOTPEmail(email: string, otp: string) {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -36,258 +41,183 @@ async function sendOTPEmail(email: string, otp: string) {
   });
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const { action, email, otp, password } = await request.json();
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
-    if (action === "send-otp") {
-      if (!email) {
-        return NextResponse.json(
-          { error: "Email is required" },
-          { status: 400 }
-        );
-      }
+function otpFailureMessage(reason: "no-otp" | "expired" | "locked" | "mismatch"): string {
+  switch (reason) {
+    case "locked":
+      return "Too many incorrect attempts. Please request a new OTP.";
+    case "expired":
+      return "OTP has expired. Please request a new one.";
+    default:
+      return "Invalid OTP";
+  }
+}
 
-      let user;
-      try {
-        user = await getUserByEmail(email);
-      } catch (dbError: any) {
-        logger.error("Database error fetching user", { 
-          error: dbError, 
-          code: dbError?.code, 
-          message: dbError?.message,
-          name: dbError?.name 
-        });
-        // Check if it's a connection error (various Prisma error codes)
-        const isConnectionError = 
-          dbError?.code === 'P1001' || 
-          dbError?.code === 'P1000' ||
-          dbError?.code === 'P1017' ||
-          dbError?.name === 'PrismaClientInitializationError' ||
-          dbError?.message?.includes("Can't reach database") ||
-          dbError?.message?.includes("connection") ||
-          dbError?.message?.includes("timeout");
-        
-        if (isConnectionError) {
-          return NextResponse.json(
-            { error: "Database connection error. Please try again later." },
-            { status: 503 }
-          );
-        }
-        return NextResponse.json(
-          { error: "Database error. Please try again later." },
-          { status: 500 }
-        );
-      }
-
-      if (!user) {
-        return NextResponse.json(
-          { error: "User not found" },
-          { status: 404 }
-        );
-      }
-
-      const otpCode = generateOTP();
-      const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      // Always save OTP to database first
-      try {
-        await updateUserOTP(email, otpCode, expiry);
-      } catch (dbError: any) {
-        logger.error("Database error saving OTP", { 
-          error: dbError, 
-          code: dbError?.code, 
-          message: dbError?.message,
-          name: dbError?.name 
-        });
-        // Check if it's a connection error (various Prisma error codes)
-        const isConnectionError = 
-          dbError?.code === 'P1001' || 
-          dbError?.code === 'P1000' ||
-          dbError?.code === 'P1017' ||
-          dbError?.name === 'PrismaClientInitializationError' ||
-          dbError?.message?.includes("Can't reach database") ||
-          dbError?.message?.includes("connection") ||
-          dbError?.message?.includes("timeout");
-        
-        if (isConnectionError) {
-          return NextResponse.json(
-            { error: "Database connection error. Please try again later." },
-            { status: 503 }
-          );
-        }
-        return NextResponse.json(
-          { error: "Failed to generate OTP. Please try again later." },
-          { status: 500 }
-        );
-      }
-
-      // Try to send email, but don't fail the request if email fails
-      // The OTP is already saved, so the user can still use it if they have access to it
-      try {
-        await sendOTPEmail(email, otpCode);
-        return NextResponse.json({ success: true, message: "OTP sent to your email" });
-      } catch (emailError: any) {
-        logger.error("Error sending email", emailError);
-        
-        // Log the OTP for debugging (only in development or if explicitly enabled)
-        if (process.env.NODE_ENV === "development" || process.env.LOG_OTP_IN_PRODUCTION === "true") {
-          logger.info(`[OTP] Generated OTP for ${email}: ${otpCode}`);
-        }
-        
-        // Return success even if email fails - OTP is saved and can be retrieved
-        // In production, you might want to return a generic message for security
-        return NextResponse.json({ 
-          success: true, 
-          message: process.env.NODE_ENV === "development" 
-            ? "OTP generated (email not configured - check logs for OTP)"
-            : "OTP generated. Please check your email or contact support if you don't receive it.",
-          // Only include devOtp in development
-          ...(process.env.NODE_ENV === "development" && { devOtp: otpCode })
-        });
-      }
-    }
-
-    if (action === "verify-otp") {
-      if (!email || !otp) {
-        return NextResponse.json(
-          { error: "Email and OTP are required" },
-          { status: 400 }
-        );
-      }
-
-      let isValid;
-      try {
-        isValid = await verifyOTP(email, otp);
-      } catch (dbError: any) {
-        logger.error("Database error verifying OTP", { 
-          error: dbError, 
-          code: dbError?.code, 
-          message: dbError?.message,
-          name: dbError?.name 
-        });
-        // Check if it's a connection error (various Prisma error codes)
-        const isConnectionError = 
-          dbError?.code === 'P1001' || 
-          dbError?.code === 'P1000' ||
-          dbError?.code === 'P1017' ||
-          dbError?.name === 'PrismaClientInitializationError' ||
-          dbError?.message?.includes("Can't reach database") ||
-          dbError?.message?.includes("connection") ||
-          dbError?.message?.includes("timeout");
-        
-        if (isConnectionError) {
-          return NextResponse.json(
-            { error: "Database connection error. Please try again later." },
-            { status: 503 }
-          );
-        }
-        return NextResponse.json(
-          { error: "Database error. Please try again later." },
-          { status: 500 }
-        );
-      }
-
-      if (!isValid) {
-        return NextResponse.json(
-          { error: "Invalid or expired OTP" },
-          { status: 400 }
-        );
-      }
-
-      return NextResponse.json({ success: true, message: "OTP verified" });
-    }
-
-    if (action === "reset-password") {
-      if (!email || !password) {
-        return NextResponse.json(
-          { error: "Email and password are required" },
-          { status: 400 }
-        );
-      }
-
-      if (password.length < 8) {
-        return NextResponse.json(
-          { error: "Password must be at least 8 characters long" },
-          { status: 400 }
-        );
-      }
-
-      try {
-        await updatePassword(email, password);
-        return NextResponse.json({ success: true, message: "Password reset successful" });
-      } catch (dbError: any) {
-        logger.error("Database error updating password", { 
-          error: dbError, 
-          code: dbError?.code, 
-          message: dbError?.message,
-          name: dbError?.name 
-        });
-        // Check if it's a connection error (various Prisma error codes)
-        const isConnectionError = 
-          dbError?.code === 'P1001' || 
-          dbError?.code === 'P1000' ||
-          dbError?.code === 'P1017' ||
-          dbError?.name === 'PrismaClientInitializationError' ||
-          dbError?.message?.includes("Can't reach database") ||
-          dbError?.message?.includes("connection") ||
-          dbError?.message?.includes("timeout");
-        
-        if (isConnectionError) {
-          return NextResponse.json(
-            { error: "Database connection error. Please try again later." },
-            { status: 503 }
-          );
-        }
-        return NextResponse.json(
-          { error: "Failed to reset password. Please try again later." },
-          { status: 500 }
-        );
-      }
-    }
-
+async function handleSendOtp(email: string, ip: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const limit = await consumeRateLimit(`send-otp:${ip}:${normalizedEmail}`, {
+    max: 3,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Invalid action" },
+      { error: "Too many OTP requests. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      }
+    );
+  }
+
+  let user;
+  try {
+    user = await getUserByEmail(normalizedEmail);
+  } catch (error) {
+    return dbErrorResponse(error, "Database error fetching user");
+  }
+
+  if (!user) {
+    // Don't disclose account existence; response is generic and timing is similar.
+    return NextResponse.json({
+      success: true,
+      message: "If the account exists, a reset code has been sent.",
+    });
+  }
+
+  const otpCode = generateOTP();
+  const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  try {
+    await updateUserOTP(normalizedEmail, otpCode, expiry);
+  } catch (error) {
+    return dbErrorResponse(error, "Database error saving OTP");
+  }
+
+  try {
+    await sendOTPEmail(normalizedEmail, otpCode);
+  } catch (error) {
+    // Don't leak SMTP failures back to the client; the OTP is saved and
+    // an admin can recover.
+    logger.error("Error sending OTP email", error);
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: "If the account exists, a reset code has been sent.",
+  });
+}
+
+async function handleVerifyOtp(email: string, otp: string, ip: string) {
+  if (!otp) {
+    return NextResponse.json({ error: "OTP is required" }, { status: 400 });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const limit = await consumeRateLimit(`verify-otp:${ip}:${normalizedEmail}`, {
+    max: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many OTP verification attempts. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      }
+    );
+  }
+
+  let result;
+  try {
+    result = await verifyOTP(normalizedEmail, otp);
+  } catch (error) {
+    return dbErrorResponse(error, "Database error verifying OTP");
+  }
+
+  if (!result.ok) {
+    return NextResponse.json({ error: otpFailureMessage(result.reason) }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true, message: "OTP verified" });
+}
+
+async function handleResetPassword(
+  email: string,
+  otp: string,
+  password: string,
+  ip: string
+) {
+  if (!otp || !password) {
+    return NextResponse.json(
+      { error: "Email, OTP and password are required" },
       { status: 400 }
     );
-  } catch (error: any) {
-    logger.error("OTP handler error", { 
-      error, 
-      code: error?.code, 
-      message: error?.message,
-      name: error?.name,
-      stack: error?.stack 
-    });
-    
-    // Provide more specific error messages when possible
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        { error: "Invalid request format" },
-        { status: 400 }
-      );
-    }
-    
-    // Check if it's a database connection error in the outer catch
-    const isConnectionError = 
-      error?.code === 'P1001' || 
-      error?.code === 'P1000' ||
-      error?.code === 'P1017' ||
-      error?.name === 'PrismaClientInitializationError' ||
-      error?.message?.includes("Can't reach database") ||
-      error?.message?.includes("connection") ||
-      error?.message?.includes("timeout");
-    
-    if (isConnectionError) {
-      return NextResponse.json(
-        { error: "Database connection error. Please try again later." },
-        { status: 503 }
-      );
-    }
-    
-    // Generic error response
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const limit = await consumeRateLimit(`reset-password:${ip}:${normalizedEmail}`, {
+    max: 5,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!limit.allowed) {
     return NextResponse.json(
-      { error: "An error occurred. Please try again later." },
-      { status: 500 }
+      { error: "Too many reset attempts. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSeconds) },
+      }
     );
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json(
+      { error: "Password must be at least 8 characters long" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const result = await verifyOTP(normalizedEmail, otp);
+    if (!result.ok) {
+      return NextResponse.json({ error: otpFailureMessage(result.reason) }, { status: 400 });
+    }
+    await updatePassword(normalizedEmail, password);
+    return NextResponse.json({ success: true, message: "Password reset successful" });
+  } catch (error) {
+    return dbErrorResponse(error, "Database error resetting password");
+  }
+}
+
+export async function POST(request: NextRequest) {
+  let body: { action?: string; email?: string; otp?: string; password?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request format" }, { status: 400 });
+  }
+
+  const { action, email, otp, password } = body;
+  const ip = getClientIp(request);
+
+  if (!email) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  }
+
+  switch (action) {
+    case "send-otp":
+      return handleSendOtp(email, ip);
+    case "verify-otp":
+      return handleVerifyOtp(email, otp ?? "", ip);
+    case "reset-password":
+      return handleResetPassword(email, otp ?? "", password ?? "", ip);
+    default:
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 }

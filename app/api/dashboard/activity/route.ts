@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { logger } from "@/lib/logger";
 import { Prisma } from "@prisma/client";
+
+// Middleware enforces auth for /api/dashboard/*.
 
 interface Activity {
   id: string;
@@ -20,9 +21,6 @@ type BusinessInquiryWithHistory = Prisma.BusinessInquiryGetPayload<{
 }>;
 
 export async function GET() {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
-
   try {
     const activities: Activity[] = [];
     const now = new Date();

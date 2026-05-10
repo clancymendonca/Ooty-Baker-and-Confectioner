@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { sendInquiryStatusEmail } from "@/lib/email-notifications";
 import { logger } from "@/lib/logger";
+import { parseIdOr400 } from "@/lib/route-params";
+import { inquiryUpdateSchema } from "@/lib/validators/inquiry";
+
+// Middleware enforces auth for all /api/inquiries/* routes.
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
     const inquiry = await prisma.businessInquiry.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
       include: {
         inquiryProducts: {
           include: {
@@ -26,14 +30,13 @@ export async function GET(
       },
     });
 
-    if (!inquiry) {
+    if (!inquiry || inquiry.isDeleted) {
       return NextResponse.json(
         { error: "Inquiry not found" },
         { status: 404 }
       );
     }
 
-    // Convert Decimal to number for JSON serialization
     const serializedInquiry = {
       ...inquiry,
       inquiryProducts: inquiry.inquiryProducts.map((ip) => ({
@@ -58,21 +61,31 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-    const body = await request.json();
-    const { status, staffNote } = body;
+    const json = await request.json().catch(() => null);
+    const parsed = inquiryUpdateSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid update payload",
+          issues: parsed.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
+    }
+    const { status, staffNote } = parsed.data;
 
-    // Get existing inquiry to check if status changed
     const existingInquiry = await prisma.businessInquiry.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
     });
 
-    if (!existingInquiry) {
+    if (!existingInquiry || existingInquiry.isDeleted) {
       return NextResponse.json(
         { error: "Inquiry not found" },
         { status: 404 }
@@ -80,14 +93,13 @@ export async function PUT(
     }
 
     const inquiry = await prisma.businessInquiry.update({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
       data: {
         status,
-        staffNote,
+        staffNote: staffNote ?? existingInquiry.staffNote,
       },
     });
 
-    // Create history entry
     await prisma.businessInquiryHistory.create({
       data: {
         inquiryId: inquiry.id,
@@ -95,7 +107,6 @@ export async function PUT(
       },
     });
 
-    // Send email notification if status changed
     if (existingInquiry.status !== status) {
       sendInquiryStatusEmail({
         email: inquiry.email,
@@ -105,11 +116,9 @@ export async function PUT(
         staffNote: inquiry.staffNote,
       }).catch((error) => {
         logger.error("Failed to send status email notification", error);
-        // Don't fail the request if email fails
       });
     }
 
-    // Fetch updated inquiry with relations for response
     const updatedInquiry = await prisma.businessInquiry.findUnique({
       where: { id: inquiry.id },
       include: {
@@ -121,7 +130,6 @@ export async function PUT(
       },
     });
 
-    // Convert Decimal to number for JSON serialization
     const serializedInquiry = updatedInquiry ? {
       ...updatedInquiry,
       inquiryProducts: updatedInquiry.inquiryProducts.map((ip) => ({
@@ -144,16 +152,37 @@ export async function PUT(
   }
 }
 
+/**
+ * Soft delete: schema has isDeleted/deletedAt and the GET filters by them.
+ * Hard-delete loses audit trail and breaks history references.
+ */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-    await prisma.businessInquiry.delete({
-      where: { id: parseInt(params.id) },
+    const existing = await prisma.businessInquiry.findUnique({
+      where: { id: idResult.id },
+      select: { id: true, isDeleted: true },
+    });
+
+    if (!existing || existing.isDeleted) {
+      return NextResponse.json(
+        { error: "Inquiry not found" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.businessInquiry.update({
+      where: { id: idResult.id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
     });
 
     return NextResponse.json({ success: true });

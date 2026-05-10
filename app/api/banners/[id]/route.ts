@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { saveFile, deleteFile, validateFile } from "@/lib/file-upload";
 import { logger } from "@/lib/logger";
+import { parseIdOr400 } from "@/lib/route-params";
+
+// Middleware enforces auth for non-GET /api/banners/[id] requests.
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
+
   try {
     const banner = await prisma.banner.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
     });
 
     if (!banner) {
@@ -26,13 +32,14 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-    const bannerId = parseInt(params.id);
+    const bannerId = idResult.id;
     const existingBanner = await prisma.banner.findUnique({
       where: { id: bannerId },
     });
@@ -116,14 +123,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-
-    const bannerId = parseInt(params.id);
+    const bannerId = idResult.id;
     const banner = await prisma.banner.findUnique({
       where: { id: bannerId },
     });

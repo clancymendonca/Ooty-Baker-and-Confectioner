@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { saveFile, validateFile } from "@/lib/file-upload";
 import { logger } from "@/lib/logger";
+
+// Middleware enforces auth for non-GET /api/banners requests.
 
 export async function GET() {
   try {
@@ -19,9 +20,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
-
   try {
     const formData = await request.formData();
     const image = formData.get("image") as File | null;

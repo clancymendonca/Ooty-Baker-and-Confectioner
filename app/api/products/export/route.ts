@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import ExcelJS from "exceljs";
-import { requireAuth } from "@/lib/auth-helpers";
 import { logger } from "@/lib/logger";
 
-export async function GET() {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+// Middleware gates /api/products/export.
 
+export async function GET() {
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: "desc" },

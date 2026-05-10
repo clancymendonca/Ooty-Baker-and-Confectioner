@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { validateFile, saveFile, deleteFile } from "@/lib/file-upload";
 import { logger } from "@/lib/logger";
+import { parseIdOr400 } from "@/lib/route-params";
+
+// Middleware enforces auth for non-GET /api/products/[id] requests.
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  // Public route - no auth required for viewing
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
+
   try {
     const product = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
     });
 
     if (!product) {
@@ -40,15 +45,15 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-    // Get existing product to check for old image
     const existingProduct = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
     });
 
     if (!existingProduct) {
@@ -108,7 +113,7 @@ export async function PUT(
     }
 
     const product = await prisma.product.update({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
       data: {
         name,
         description,
@@ -139,26 +144,24 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  const { id: rawId } = await params;
+  const idResult = parseIdOr400(rawId);
+  if (idResult.error) return idResult.error;
 
   try {
-    // Get product to delete associated image
     const product = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: idResult.id },
     });
 
     if (product) {
-      // Delete associated image file
       if (product.imagePath) {
         await deleteFile(product.imagePath);
       }
 
-      // Delete product from database
       await prisma.product.delete({
-        where: { id: parseInt(params.id) },
+        where: { id: idResult.id },
       });
     }
 

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { logger } from "@/lib/logger";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { inquiryCreateSchema } from "@/lib/validators/inquiry";
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 export async function GET() {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+  // Middleware enforces auth for /api/inquiries (non-public-POST).
   try {
     const inquiries = await prisma.businessInquiry.findMany({
       where: {
@@ -21,7 +29,6 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    // Convert Decimal to number for JSON serialization
     const serializedInquiries = inquiries.map((inquiry) => ({
       ...inquiry,
       inquiryProducts: inquiry.inquiryProducts.map((ip) => ({
@@ -44,94 +51,98 @@ export async function GET() {
   }
 }
 
+/**
+ * Public endpoint: anonymous visitors submit inquiries from the marketing form.
+ * Protected by IP-based rate limit + strict Zod validation. No auth required.
+ */
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
-
   try {
-    const body = await request.json();
-    const {
-      businessName,
-      contactPersonName,
-      email,
-      phone,
-      estimatedQuantity,
-      deliveryFrequency,
-      address,
-      additionalNotes,
-      businessNature,
-      productInterest,
-    } = body;
-
-    // Validate phone number (remove leading zeros)
-    const cleanPhone = phone.replace(/^0+/, "");
-
-    // Create inquiry
-    const inquiry = await prisma.businessInquiry.create({
-      data: {
-        businessName,
-        contactPersonName,
-        email,
-        phone: cleanPhone,
-        estimatedQuantity,
-        deliveryFrequency,
-        address,
-        additionalNotes,
-        businessNature,
-        status: "new",
-      },
+    const ip = getClientIp(request);
+    const limit = await consumeRateLimit(`inquiry:${ip}`, {
+      max: 5,
+      windowMs: 10 * 60 * 1000,
     });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSeconds) },
+        }
+      );
+    }
 
-    // Create inquiry products
-    if (productInterest && productInterest.length > 0) {
-      await prisma.businessInquiryProduct.createMany({
-        data: productInterest.map((productId: number) => ({
-          inquiryId: inquiry.id,
+    const json = await request.json().catch(() => null);
+    const parsed = inquiryCreateSchema.safeParse(json);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid inquiry payload",
+          issues: parsed.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const data = parsed.data;
+
+    // Confirm referenced products actually exist before persisting the inquiry.
+    const productCount = await prisma.product.count({
+      where: { id: { in: data.productInterest } },
+    });
+    if (productCount !== data.productInterest.length) {
+      return NextResponse.json(
+        { error: "One or more selected products are no longer available." },
+        { status: 400 }
+      );
+    }
+
+    const inquiry = await prisma.$transaction(async (tx) => {
+      const created = await tx.businessInquiry.create({
+        data: {
+          businessName: data.businessName,
+          contactPersonName: data.contactPersonName,
+          email: data.email,
+          phone: data.phone,
+          estimatedQuantity: data.estimatedQuantity,
+          deliveryFrequency: data.deliveryFrequency,
+          address: data.address,
+          additionalNotes: data.additionalNotes || null,
+          businessNature: data.businessNature,
+          status: "new",
+        },
+      });
+
+      await tx.businessInquiryProduct.createMany({
+        data: data.productInterest.map((productId) => ({
+          inquiryId: created.id,
           productId,
         })),
       });
-    }
 
-    // Create history entry
-    await prisma.businessInquiryHistory.create({
-      data: {
-        inquiryId: inquiry.id,
-        status: "new",
-      },
+      await tx.businessInquiryHistory.create({
+        data: { inquiryId: created.id, status: "new" },
+      });
+
+      return created;
     });
 
+    // Don't return server-managed columns to the public caller.
     return NextResponse.json(
-      { success: true, inquiry },
+      { success: true, id: inquiry.id },
       { status: 201 }
     );
   } catch (error) {
     logger.error("Error creating inquiry", error);
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: "Invalid request format" },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { error: "Failed to create inquiry" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE() {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
-
-  try {
-    // Delete all inquiry products first (due to foreign key constraints)
-    await prisma.businessInquiryProduct.deleteMany({});
-    
-    // Delete all inquiry history
-    await prisma.businessInquiryHistory.deleteMany({});
-    
-    // Delete all inquiries
-    await prisma.businessInquiry.deleteMany({});
-
-    return NextResponse.json({ success: true, message: "All inquiries deleted successfully" });
-  } catch (error) {
-    logger.error("Error deleting all inquiries", error);
-    return NextResponse.json(
-      { error: "Failed to delete all inquiries" },
       { status: 500 }
     );
   }

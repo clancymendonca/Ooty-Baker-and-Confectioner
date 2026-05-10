@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { logger } from "@/lib/logger";
 
-export async function GET() {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+// Middleware enforces auth for /api/dashboard/*.
 
+export async function GET() {
   try {
     // Total inquiries
     const totalInquiries = await prisma.businessInquiry.count({

@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-helpers";
 import { logger } from "@/lib/logger";
 
-export async function GET(request: NextRequest) {
-  const auth = await requireAuth();
-  if (auth.error) return auth.error;
+// Middleware enforces auth for /api/analytics.
 
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "30"; // days
