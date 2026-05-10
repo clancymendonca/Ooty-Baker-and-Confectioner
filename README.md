@@ -1,6 +1,6 @@
-# Ooty Baker & Confectioner - Next.js Application
+# Ooty Baker & Confectioner – E-commerce CMS
 
-A modern web application for Ooty Baker & Confectioner built with Next.js, TypeScript, Tailwind CSS, Prisma ORM, and Supabase.
+A full-stack E-commerce CMS platform built with Next.js 15, TypeScript, and PostgreSQL. Features include an intuitive admin dashboard with real-time analytics, secure OTP-based authentication, comprehensive product and business inquiry management, automated email notifications via Nodemailer, Excel export functionality with ExcelJS, and a fully responsive UI optimized for SEO and security.
 
 ## 🚀 Features
 
@@ -18,7 +18,7 @@ A modern web application for Ooty Baker & Confectioner built with Next.js, TypeS
 
 ## 🛠 Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL (Supabase) with Prisma ORM
@@ -63,7 +63,7 @@ npm install
    - Transaction mode (port 6543) allows more concurrent connections and is better for serverless
    - Session mode (port 5432) has limited connections and will cause "max clients reached" errors
 4. Copy the connection string and add `?pgbouncer=true` at the end
-   - Should look like: `postgresql://postgres.asvdhrajxiroovtyzsxj:[PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
+   - Should look like: `postgresql://postgres.<project-ref>:[PASSWORD]@<region>.pooler.supabase.com:6543/postgres?pgbouncer=true`
    - Note the port is **6543** (Transaction mode), not 5432 (Session mode)
 
 #### Set Up Image Storage (Choose One)
@@ -117,8 +117,8 @@ npm install
 Create `.env.local` file in the root directory:
 
 ```env
-# Database (Supabase PostgreSQL)
-DATABASE_URL="postgresql://postgres.asvdhrajxiroovtyzsxj:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+# Database (Supabase PostgreSQL - Transaction pooler)
+DATABASE_URL="postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@<region>.pooler.supabase.com:6543/postgres?pgbouncer=true"
 
 # Image Storage - Choose ONE option:
 
@@ -131,9 +131,21 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_xxxxx"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key-here"
 
-# NextAuth
+# Public site URL (canonical metadata, sitemap, robots). Use your real origin in production.
+# If unset in production, the app falls back to https://www.gimmieooty.in (see lib/site-url.ts).
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Session signing (required in production). Prefer AUTH_SESSION_SECRET (32+ chars).
+# NEXTAUTH_SECRET is still accepted as a fallback for signing; see lib/session-token.ts
+AUTH_SESSION_SECRET=your-random-secret-at-least-32-characters-long
+
+# NextAuth (optional legacy URL; overlaps with NEXT_PUBLIC_SITE_URL for local dev)
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-random-32-character-secret-key
+
+# Optional: Vercel KV / Upstash for distributed rate limits (see lib/rate-limit.ts)
+# KV_REST_API_URL=
+# KV_REST_API_TOKEN=
 
 # Email/SMTP
 SMTP_HOST=smtp.gmail.com
@@ -154,7 +166,7 @@ NODE_ENV=development
 **Note:** 
 - Replace `[YOUR-PASSWORD]` with your actual Supabase database password
 - Replace `xxxxx` with your Supabase project reference
-- Generate `NEXTAUTH_SECRET` with: `openssl rand -base64 32`
+- Generate `AUTH_SESSION_SECRET` (or `NEXTAUTH_SECRET`) with: `openssl rand -base64 32`
 - For Gmail, use [App Password](https://myaccount.google.com/apppasswords) (not your regular password)
 - Sentry variables are optional - only add if you want error tracking in production
 
@@ -164,12 +176,16 @@ NODE_ENV=development
 # Generate Prisma Client
 npm run db:generate
 
-# Push schema to Supabase database
-npm run db:push
+# Apply migrations (recommended for production, CI, and new local databases)
+npx prisma migrate deploy
 
 # (Optional) Seed database with sample data
 npm run db:seed
 ```
+
+For a **fresh** local database, use `npx prisma migrate deploy` (or `npm run db:migrate` when authoring new migrations). Use `npm run db:push` only for quick local experiments when you intentionally want to sync the schema without migrations.
+
+**Existing Supabase database** that was created with `db:push` before migrations existed: baseline with `npx prisma migrate resolve --applied 20250510000000_init` once the live schema already matches this migration, then use `migrate deploy` for future changes—or reset the DB and run `migrate deploy` on empty Postgres.
 
 ### 5. Copy Images (if any)
 
@@ -211,6 +227,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 │   ├── file-upload.ts   # File upload (Supabase + local fallback)
 │   └── logger.ts        # Logging utility
 ├── prisma/               # Prisma schema
+│   ├── migrations/     # Versioned SQL migrations
 │   ├── schema.prisma    # Database schema
 │   └── seed.ts          # Database seeding
 ├── public/               # Static files
@@ -277,15 +294,17 @@ npm run start        # Start production server
 npm run lint         # Run ESLint
 
 # Database
-npm run db:generate  # Generate Prisma Client
-npm run db:push      # Push schema changes to database
-npm run db:migrate   # Run database migrations
-npm run db:studio    # Open Prisma Studio (database GUI)
-npm run db:seed      # Seed database with sample data
+npm run db:generate      # Generate Prisma Client
+npm run db:push          # Push schema (local experiments; prefer migrations in prod)
+npm run db:migrate       # Create/apply dev migrations (prisma migrate dev)
+npm run db:migrate:deploy # Apply migrations in CI/production (prisma migrate deploy)
+npm run db:studio        # Open Prisma Studio (database GUI)
+npm run db:seed          # Seed database with sample data
 
 # Utilities
 npm run reset-password  # Reset user password
 npm run test-smtp       # Test SMTP configuration
+npm run test-blob       # Test Vercel Blob token (upload + delete)
 ```
 
 ## 🚀 Deployment to Vercel
@@ -307,9 +326,11 @@ npm run test-smtp       # Test SMTP configuration
    - Go to **Settings → Environment Variables**
    - Add all variables from `.env.local` (see above)
    - **Important:** 
-     - Use **Session pooler** connection string for `DATABASE_URL`
-     - Update `NEXTAUTH_URL` to your Vercel domain
-     - Generate a new `NEXTAUTH_SECRET` for production
+     - Use the **Transaction pooler** connection string for `DATABASE_URL` (port `6543`, with `?pgbouncer=true`). Session pooler (`5432`) will hit connection limits on Vercel.
+     - Set `NEXT_PUBLIC_SITE_URL` to your public origin (e.g. `https://your-domain.vercel.app`)
+     - Set `AUTH_SESSION_SECRET` (32+ characters) for production; you may keep `NEXTAUTH_URL` aligned with the same origin if you use it elsewhere
+     - Add `BLOB_READ_WRITE_TOKEN` on Vercel when using Blob storage, or Supabase URL + anon key for Supabase Storage
+     - Optional: `KV_REST_API_URL` and `KV_REST_API_TOKEN` so rate limits work across all serverless instances
 
 3. **Deploy**
    - Vercel will automatically detect Next.js
@@ -319,9 +340,12 @@ npm run test-smtp       # Test SMTP configuration
 ### Environment Variables for Vercel
 
 ```env
-DATABASE_URL=postgresql://postgres.asvdhrajxiroovtyzsxj:[PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+DATABASE_URL=postgresql://postgres.<project-ref>:[PASSWORD]@<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
+NEXT_PUBLIC_SITE_URL=https://your-domain.vercel.app
+AUTH_SESSION_SECRET=production-secret-at-least-32-characters-long
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+BLOB_READ_WRITE_TOKEN=vercel_blob_...
 NEXTAUTH_URL=https://your-domain.vercel.app
 NEXTAUTH_SECRET=production-secret-here
 NODE_ENV=production
@@ -330,7 +354,16 @@ SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 SMTP_FROM=your-email@gmail.com
+# Optional: KV_REST_API_URL=...  KV_REST_API_TOKEN=...
 ```
+
+### Production deploy checklist
+
+- `npm run build` succeeds locally with production-like env
+- Vercel (or host) has `DATABASE_URL`, `AUTH_SESSION_SECRET`, `NEXT_PUBLIC_SITE_URL`, SMTP, and image storage (Blob or Supabase)
+- Database schema applied with `npx prisma migrate deploy` (or baselined per section 4 if upgrading from `db:push` only)
+- At least one admin user exists (`npm run create-user` / `npm run reset-password`)
+- Smoke test: login, inquiry form, product/banner image upload
 
 ### Why Supabase?
 
@@ -345,14 +378,14 @@ SMTP_FROM=your-email@gmail.com
 
 - **Authentication**: Uses HTTP-only cookies for secure session management
 - **Image Storage**: Automatically uses Supabase Storage if configured, falls back to local file system in development
-- **Database**: Uses PostgreSQL via Supabase. Session pooler connection is required for IPv4 compatibility.
+- **Database**: Uses PostgreSQL via Supabase. Transaction pooler (port `6543`, `?pgbouncer=true`) is required so each lambda gets its own connection slot.
 - **Email**: SMTP required for OTP functionality. Use Mailtrap for testing.
 - **Real-time Updates**: Dashboard uses Server-Sent Events (SSE) for live updates
 
 ## 🐛 Troubleshooting
 
 ### Database Connection Issues
-- Ensure you're using **Session pooler** connection string (not Direct connection)
+- Ensure you're using the **Transaction pooler** connection string (port `6543`, `?pgbouncer=true`) — not Session pooler (`5432`) or Direct connection
 - Verify password is correct in Supabase Settings → Database
 - Check Network Restrictions allow all IP addresses
 
