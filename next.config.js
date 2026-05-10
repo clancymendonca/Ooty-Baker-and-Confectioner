@@ -29,15 +29,17 @@ const imageRemotePatterns = [
  * Permissive-but-safe baseline CSP. We allow `'unsafe-inline'` for styles
  * because Tailwind's runtime style hooks and inline `style={{...}}` props
  * generate them; tightening this requires nonces. `connect-src` includes
- * Sentry's tunnel route under `/monitoring`.
+ * Sentry's tunnel route under `/monitoring`, direct ingest (EU/US), Vercel
+ * Live, and blob workers for Sentry replay on the client.
  */
 const csp = [
   "default-src 'self'",
   "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com https://*.supabase.co",
   "font-src 'self' data: https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
-  "connect-src 'self' https://*.supabase.co https://*.ingest.sentry.io",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://vercel.live https://*.vercel.live",
+  "worker-src 'self' blob:",
+  "connect-src 'self' https://*.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://vercel.live https://*.vercel.live wss://vercel.live wss://*.vercel.live",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
