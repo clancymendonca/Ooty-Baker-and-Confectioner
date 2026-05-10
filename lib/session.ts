@@ -13,7 +13,7 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function createSession(userId: number, email: string) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionData = {
       userId,
       email,
@@ -37,7 +37,7 @@ export async function createSession(userId: number, email: string) {
 
 export async function getSession(): Promise<SessionUser | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
 
     if (!sessionCookie?.value) {
@@ -77,6 +77,6 @@ export async function getSession(): Promise<SessionUser | null> {
 }
 
 export async function destroySession() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
