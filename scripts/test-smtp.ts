@@ -2,8 +2,8 @@ import nodemailer from "nodemailer";
 import { config } from "dotenv";
 import { resolve } from "path";
 
-// Load environment variables from .env.local
-config({ path: resolve(process.cwd(), ".env.local") });
+config({ path: resolve(process.cwd(), ".env") });
+config({ path: resolve(process.cwd(), ".env.local"), override: true });
 
 async function testSMTP() {
   console.log("🧪 Testing SMTP Configuration...\n");
