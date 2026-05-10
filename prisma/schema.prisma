@@ -15,7 +15,7 @@ model User {
   id               Int       @id @default(autoincrement())
   email            String    @unique
   password         String
-  isAdminCreated   Boolean   @default(false) @map("is_admin_created")
+  role             String    @default("user")
   otpCode          String?   @map("otp_code")
   otpExpiry        DateTime? @map("otp_expiry")
   otpAttempts      Int       @default(0) @map("otp_attempts")
