@@ -192,10 +192,10 @@ export default function Footer() {
               &copy; {currentYear} Ooty Baker & Confectioner. All Rights Reserved.
             </p>
             <div className="flex space-x-6 text-sm text-white/70">
-              <Link href="#" className="hover:text-white transition-colors">
+              <Link href="/privacy" className="hover:text-white transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="#" className="hover:text-white transition-colors">
+              <Link href="/terms" className="hover:text-white transition-colors">
                 Terms of Service
               </Link>
             </div>

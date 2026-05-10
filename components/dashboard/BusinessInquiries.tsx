@@ -129,29 +129,6 @@ export default function BusinessInquiries() {
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!confirm("Are you sure you want to delete all inquiries? This action cannot be undone.")) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/inquiries", {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setInquiries([]);
-        setFilteredInquiries([]);
-        showMessage("All inquiries deleted successfully");
-      } else {
-        showMessage("Failed to delete all inquiries", false);
-      }
-    } catch (error) {
-      logger.error("Error deleting all inquiries", error);
-      showMessage("An error occurred while deleting inquiries", false);
-    }
-  };
-
   const showMessage = (message: string, isSuccess: boolean = true) => {
     const messageDiv = document.createElement("div");
     messageDiv.style.position = "fixed";
@@ -253,12 +230,6 @@ export default function BusinessInquiries() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-heading">Business Inquiries</h2>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleDeleteAll}
-            className="px-4 py-2 border border-heading/20 text-body rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Delete All
-          </button>
           <button
             onClick={handleExport}
             className="px-4 py-2 bg-heading text-white rounded-lg hover:bg-heading/90 transition-colors"

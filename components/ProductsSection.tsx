@@ -109,6 +109,7 @@ function CategorySection({ category, products }: { category: string; products: S
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const checkScrollability = () => {
     if (carouselRef.current) {
@@ -130,85 +131,48 @@ function CategorySection({ category, products }: { category: string; products: S
     }
   };
 
-  // Auto-scroll functionality
+  // Single source of truth for the carousel scroll listeners and the
+  // auto-advance timer. Auto-advance is paused on hover, on mobile, and when
+  // the user prefers reduced motion.
   useEffect(() => {
-    checkScrollability();
     const carousel = carouselRef.current;
-    if (carousel) {
-      carousel.addEventListener("scroll", checkScrollability);
-      window.addEventListener("resize", checkScrollability);
+    if (!carousel) return;
 
-      // Check if carousel can scroll (has overflow)
-      const canScroll = carousel.scrollWidth > carousel.clientWidth;
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+    setIsMobile(mobile);
 
-      // Auto-scroll function
-      const startAutoScroll = () => {
-        if (autoScrollIntervalRef.current) {
-          clearInterval(autoScrollIntervalRef.current);
+    checkScrollability();
+    carousel.addEventListener("scroll", checkScrollability);
+    window.addEventListener("resize", checkScrollability);
+
+    const canScroll = carousel.scrollWidth > carousel.clientWidth;
+    const shouldAutoScroll = canScroll && !mobile && !reducedMotion && !isHovered;
+
+    if (shouldAutoScroll) {
+      autoScrollIntervalRef.current = setInterval(() => {
+        const el = carouselRef.current;
+        if (!el) return;
+        const { scrollLeft, scrollWidth, clientWidth } = el;
+        if (scrollLeft >= scrollWidth - clientWidth - 10) {
+          el.scrollTo({ left: 0, behavior: "smooth" });
+        } else {
+          scroll("right");
         }
-
-        if (canScroll && !isHovered) {
-          autoScrollIntervalRef.current = setInterval(() => {
-            if (carouselRef.current) {
-              const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
-              
-              // If reached the end, reset to beginning
-              if (scrollLeft >= scrollWidth - clientWidth - 10) {
-                carouselRef.current.scrollTo({
-                  left: 0,
-                  behavior: "smooth",
-                });
-              } else {
-                // Otherwise, scroll right
-                scroll("right");
-              }
-            }
-          }, 3000); // Auto-scroll every 3 seconds
-        }
-      };
-
-      // Start auto-scroll if not hovered
-      if (canScroll) {
-        startAutoScroll();
-      }
-
-      return () => {
-        carousel.removeEventListener("scroll", checkScrollability);
-        window.removeEventListener("resize", checkScrollability);
-        if (autoScrollIntervalRef.current) {
-          clearInterval(autoScrollIntervalRef.current);
-        }
-      };
+      }, 3000);
     }
+
+    return () => {
+      carousel.removeEventListener("scroll", checkScrollability);
+      window.removeEventListener("resize", checkScrollability);
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+        autoScrollIntervalRef.current = null;
+      }
+    };
   }, [products, isHovered]);
-
-  // Pause/resume auto-scroll on hover
-  useEffect(() => {
-    if (autoScrollIntervalRef.current) {
-      clearInterval(autoScrollIntervalRef.current);
-      autoScrollIntervalRef.current = null;
-    }
-
-    if (!isHovered && carouselRef.current) {
-      const canScroll = carouselRef.current.scrollWidth > carouselRef.current.clientWidth;
-      if (canScroll) {
-        autoScrollIntervalRef.current = setInterval(() => {
-          if (carouselRef.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
-            
-            if (scrollLeft >= scrollWidth - clientWidth - 10) {
-              carouselRef.current.scrollTo({
-                left: 0,
-                behavior: "smooth",
-              });
-            } else {
-              scroll("right");
-            }
-          }
-        }, 3000);
-      }
-    }
-  }, [isHovered]);
 
   return (
     <div className="mb-20" data-aos="fade-up">
@@ -228,7 +192,7 @@ function CategorySection({ category, products }: { category: string; products: S
           onClick={() => scroll("left")}
           disabled={!canScrollLeft}
           className={`absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 bg-white rounded-full p-3 shadow-lg hover:bg-primary hover:text-white transition-all duration-300 ${
-            canScrollLeft && isHovered ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"
+            canScrollLeft && (isHovered || isMobile) ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"
           } disabled:opacity-0 disabled:cursor-not-allowed hover:scale-110 border-2 border-heading/20`}
           aria-label="Previous items"
         >
@@ -239,7 +203,7 @@ function CategorySection({ category, products }: { category: string; products: S
         <div
           ref={carouselRef}
           className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-4 px-2"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none", scrollSnapType: "x mandatory" }}
           onScroll={checkScrollability}
         >
           {products.map((product, index) => (
@@ -252,7 +216,7 @@ function CategorySection({ category, products }: { category: string; products: S
           onClick={() => scroll("right")}
           disabled={!canScrollRight}
           className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 bg-white rounded-full p-3 shadow-lg hover:bg-primary hover:text-white transition-all duration-300 ${
-            canScrollRight && isHovered ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
+            canScrollRight && (isHovered || isMobile) ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
           } disabled:opacity-0 disabled:cursor-not-allowed hover:scale-110 border-2 border-heading/20`}
           aria-label="Next items"
         >
@@ -286,9 +250,10 @@ function CategorySection({ category, products }: { category: string; products: S
 function ProductCard({ product, index }: { product: SerializedProduct; index: number }) {
   return (
     <div 
-      className="card__article relative bg-white rounded-[40px] overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 min-w-[280px] max-w-[320px]"
+      className="card__article relative bg-white rounded-[40px] overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 min-w-[280px] max-w-[320px] scroll-ml-2"
       style={{
         animation: `fadeInUp 0.6s ease-out ${index * 0.1}s both`,
+        scrollSnapAlign: "start",
       }}
     >
       {/* Veg Badge */}
@@ -311,6 +276,7 @@ function ProductCard({ product, index }: { product: SerializedProduct; index: nu
               alt={product.name}
               width={320}
               height={320}
+              sizes="(max-width: 768px) 80vw, (max-width: 1280px) 33vw, 320px"
               className="card__image w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             />
           ) : (
@@ -351,6 +317,29 @@ function ProductCard({ product, index }: { product: SerializedProduct; index: nu
                     )}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="px-4 pb-5 pt-3">
+        <h3 className="text-lg font-bold text-heading line-clamp-1">{product.name}</h3>
+        {product.description && (
+          <p className="text-sm text-body/70 mt-1 line-clamp-2">{product.description}</p>
+        )}
+        <div className="mt-3">
+          {product.pricePerGram ? (
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <span className="px-3 py-1.5 text-white bg-primary rounded-lg whitespace-nowrap font-semibold shadow-md">
+                ₹{Number(product.pricePerGram).toFixed(2)}/g
+              </span>
+              <span className="px-3 py-1.5 text-white bg-primary rounded-lg whitespace-nowrap font-semibold shadow-md">
+                ₹{Number(product.price).toFixed(2)}
+              </span>
+            </div>
+          ) : (
+            <span className="inline-block px-4 py-2 text-white bg-primary rounded-lg font-semibold shadow-md text-sm">
+              ₹{Number(product.price).toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
     </div>

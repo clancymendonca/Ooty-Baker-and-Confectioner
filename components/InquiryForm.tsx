@@ -1,49 +1,50 @@
 "use client";
 
-import { logger } from "@/lib/logger";
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { InquiryFormData } from "@/types";
 
+/**
+ * Client-side validation schema. Length-only on free-text names so we don't
+ * reject legitimate Indian business / personal names with apostrophes,
+ * hyphens, periods, ampersands, or non-Latin scripts. Server-side validation
+ * in `lib/validators/inquiry.ts` is the actual gate.
+ */
 const inquirySchema = z.object({
-  businessName: z.string().min(2).max(100).regex(/^[A-Za-z0-9\s\.&]+$/),
-  contactPersonName: z.string().min(2).max(50).regex(/^[A-Za-z\s]+$/),
-  email: z.string().email().max(100),
+  businessName: z.string().trim().min(2).max(100),
+  contactPersonName: z.string().trim().min(2).max(50),
+  email: z.string().trim().email().max(100),
   phone: z.string().regex(/^[0-9]{10}$/, "Phone must be exactly 10 digits"),
-  estimatedQuantity: z.string().max(50).regex(/^[0-9]+(kg|units|pieces|boxes|packs|dozens|g|ml|L)$/i),
+  estimatedQuantity: z
+    .string()
+    .max(50)
+    .regex(
+      /^[0-9]+(\.[0-9]+)?\s?(kg|units|pieces|boxes|packs|dozens|g|ml|l)$/i,
+      "Use format like 100kg, 100 kg, 500 units, or 1.5kg"
+    ),
   deliveryFrequency: z.enum(["One-time", "Weekly", "Monthly"]),
-  address: z.string().min(10).max(200),
+  address: z.string().trim().min(10).max(200),
   additionalNotes: z.string().max(500).optional(),
   businessNature: z.enum(["Customer", "Consumer", "Dealer"]),
   productInterest: z.array(z.number()).min(1, "Please select at least one product"),
 });
 
-interface InquiryFormProps {
-  categories: string[];
+export interface InquiryFormProduct {
+  id: number;
+  name: string;
+  variety: string | null;
 }
 
-export default function InquiryForm({ categories }: InquiryFormProps) {
-  const [products, setProducts] = useState<Array<{ id: number; name: string; variety: string | null }>>([]);
+interface InquiryFormProps {
+  categories: string[];
+  products: InquiryFormProduct[];
+}
+
+export default function InquiryForm({ categories: _categories, products }: InquiryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const response = await fetch("/api/products");
-        if (response.ok) {
-          const data = await response.json();
-          setProducts(data);
-        }
-      } catch (error) {
-        logger.error("Error fetching products", error);
-      }
-    }
-    fetchProducts();
-  }, []);
 
   const {
     register,
@@ -176,6 +177,8 @@ export default function InquiryForm({ categories }: InquiryFormProps) {
                   type="tel"
                   placeholder="Mobile number"
                   maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel"
                   className="w-full px-4 py-2 border border-heading/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
                 />
                 {errors.phone && (
@@ -193,6 +196,9 @@ export default function InquiryForm({ categories }: InquiryFormProps) {
                   placeholder="e.g. 100kg / 500 units"
                   className="w-full px-4 py-2 border border-heading/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
                 />
+                <p className="text-xs text-body/70 mt-1">
+                  Examples: 100kg, 100 kg, 500 units, 1.5kg
+                </p>
                 {errors.estimatedQuantity && (
                   <p className="text-red-600 text-sm mt-1">{errors.estimatedQuantity.message}</p>
                 )}

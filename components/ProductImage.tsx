@@ -9,9 +9,27 @@ interface ProductImageProps {
   className?: string;
   width?: number;
   height?: number;
+  /**
+   * `sizes` for the underlying `next/image`. Provide a media-query-based
+   * value at call sites that render the image at a different width per
+   * breakpoint (e.g. carousels). Default targets ~50vw on mobile and a
+   * 320px tile on desktop, matching the homepage product carousel.
+   */
+  sizes?: string;
+  priority?: boolean;
 }
 
-export default function ProductImage({ src, alt, className, width = 400, height = 400 }: ProductImageProps) {
+const DEFAULT_SIZES = "(max-width: 768px) 50vw, 320px";
+
+export default function ProductImage({
+  src,
+  alt,
+  className,
+  width = 400,
+  height = 400,
+  sizes = DEFAULT_SIZES,
+  priority = false,
+}: ProductImageProps) {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(src);
 
@@ -36,6 +54,8 @@ export default function ProductImage({ src, alt, className, width = 400, height 
       alt={alt}
       width={width}
       height={height}
+      sizes={sizes}
+      priority={priority}
       className={className}
       onError={handleError}
       unoptimized={imageSrc.startsWith('/uploads/')}

@@ -88,6 +88,7 @@ export default function DashboardSidebar({
                 setCurrentSection("overview");
                 setIsOpen(false);
               }}
+              aria-current={currentSection === "overview" ? "page" : undefined}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentSection === "overview"
                   ? "bg-primary text-white"
@@ -109,6 +110,7 @@ export default function DashboardSidebar({
                 setCurrentSection("business-inquiries");
                 setIsOpen(false);
               }}
+              aria-current={currentSection === "business-inquiries" ? "page" : undefined}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentSection === "business-inquiries"
                   ? "bg-primary text-white"
@@ -125,6 +127,7 @@ export default function DashboardSidebar({
                 setCurrentSection("product-edit");
                 setIsOpen(false);
               }}
+              aria-current={currentSection === "product-edit" || currentSection === "product" ? "page" : undefined}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentSection === "product-edit" || currentSection === "product"
                   ? "bg-primary text-white"
@@ -146,6 +149,7 @@ export default function DashboardSidebar({
                 setCurrentSection("analytics");
                 setIsOpen(false);
               }}
+              aria-current={currentSection === "analytics" ? "page" : undefined}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentSection === "analytics"
                   ? "bg-primary text-white"
@@ -162,6 +166,7 @@ export default function DashboardSidebar({
                 setCurrentSection("banners");
                 setIsOpen(false);
               }}
+              aria-current={currentSection === "banners" ? "page" : undefined}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentSection === "banners"
                   ? "bg-primary text-white"
