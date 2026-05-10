@@ -68,8 +68,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "Roboto", "system-ui", "sans-serif"],
-        poppins: ["Poppins", "sans-serif"],
+        sans: ["var(--font-poppins)", "system-ui", "sans-serif"],
+        poppins: ["var(--font-poppins)", "system-ui", "sans-serif"],
       },
       boxShadow: {
         "surface": "0 4px 15px rgba(0, 0, 0, 0.08)",
