@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, verifyPassword } from "@/lib/auth";
-import { createSession } from "@/lib/session";
+import { attachAuthSessionCookie, signAuthSessionToken } from "@/lib/session";
 import { logger } from "@/lib/logger";
 import { clearRateLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { loginSchema } from "@/lib/validators/auth";
@@ -66,13 +66,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await createSession(user.id, user.email);
+    const token = await signAuthSessionToken(user.id, user.email);
     await clearRateLimit(rateLimitKey);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: { id: user.id, email: user.email },
     });
+    attachAuthSessionCookie(response, token);
+    return response;
   } catch (error: any) {
     logger.error("Login error", error);
 
@@ -89,14 +91,21 @@ export async function POST(request: NextRequest) {
       error?.name === "PrismaClientInitializationError" ||
       error?.message?.includes("Can't reach database");
 
+    const isSessionSecretMissing =
+      typeof error?.message === "string" &&
+      error.message.includes("Missing AUTH_SESSION_SECRET");
+
+    const useUnavailable =
+      isConnectionError || isSessionSecretMissing;
+
     return NextResponse.json(
       {
         success: false,
-        error: isConnectionError
+        error: useUnavailable
           ? "Authentication service is temporarily unavailable."
           : "Unable to process login request.",
       },
-      { status: isConnectionError ? 503 : 500 }
+      { status: useUnavailable ? 503 : 500 }
     );
   }
 }
