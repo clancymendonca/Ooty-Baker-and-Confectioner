@@ -11,32 +11,45 @@ import { Suspense } from "react";
 
 export const revalidate = 60; // Revalidate every 60 seconds
 
-async function getProducts() {
+type SerializedProduct = {
+  id: number;
+  name: string;
+  description: string | null;
+  imagePath: string | null;
+  price: number;
+  variety: string | null;
+  pricePerGram: number | null;
+  vegStatus: string;
+  createdAt: Date;
+};
+
+async function getProducts(): Promise<{
+  productsByCategory: Record<string, SerializedProduct[]>;
+  flatProducts: SerializedProduct[];
+}> {
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imagePath: true,
+        price: true,
+        variety: true,
+        pricePerGram: true,
+        vegStatus: true,
+        createdAt: true,
+      },
     });
 
-    // Convert Decimal to number for client components
-    const serializedProducts = products.map((product) => ({
+    const serializedProducts: SerializedProduct[] = products.map((product) => ({
       ...product,
       price: Number(product.price),
       pricePerGram: product.pricePerGram ? Number(product.pricePerGram) : null,
     }));
 
-    // Group products by variety
-    const productsByCategory: Record<string, Array<{
-      id: number;
-      name: string;
-      description: string | null;
-      imagePath: string | null;
-      price: number;
-      variety: string | null;
-      pricePerGram: number | null;
-      vegStatus: string;
-      createdAt: Date;
-    }>> = {};
-    
+    const productsByCategory: Record<string, SerializedProduct[]> = {};
     serializedProducts.forEach((product) => {
       const category = product.variety || "Uncategorized";
       if (!productsByCategory[category]) {
@@ -45,16 +58,17 @@ async function getProducts() {
       productsByCategory[category].push(product);
     });
 
-    return productsByCategory;
+    return { productsByCategory, flatProducts: serializedProducts };
   } catch (error) {
     logger.error("Error fetching products", error);
-    return {};
+    return { productsByCategory: {}, flatProducts: [] };
   }
 }
 
 export default async function HomePage() {
-  const productsByCategory = await getProducts();
+  const { productsByCategory, flatProducts } = await getProducts();
   const categories = Object.keys(productsByCategory);
+  const inquiryProducts = flatProducts.map(({ id, name, variety }) => ({ id, name, variety }));
 
   return (
     <main className="min-h-screen">
@@ -97,7 +111,7 @@ export default async function HomePage() {
           <div className="w-12 h-0.5 bg-heading/30"></div>
         </div>
       </div>
-      <InquiryForm categories={categories} />
+      <InquiryForm categories={categories} products={inquiryProducts} />
       {/* Section Divider */}
       <div className="relative w-full h-24 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>

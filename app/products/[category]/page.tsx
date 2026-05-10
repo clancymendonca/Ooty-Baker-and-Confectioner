@@ -33,15 +33,16 @@ async function getProductsByCategory(category: string) {
 export default async function ProductsPage({
   params,
 }: {
-  params: { category: string };
+  params: Promise<{ category: string }>;
 }) {
-  const products = await getProductsByCategory(params.category);
+  const { category: rawCategory } = await params;
+  const products = await getProductsByCategory(rawCategory);
 
   if (products.length === 0) {
     notFound();
   }
 
-  const category = decodeURIComponent(params.category);
+  const category = decodeURIComponent(rawCategory);
 
   return (
     <main className="min-h-screen">
@@ -163,6 +164,7 @@ export default async function ProductsPage({
                   alt={product.name}
                   width={320}
                   height={320}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 320px"
                   className="card__image w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 

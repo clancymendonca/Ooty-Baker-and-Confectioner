@@ -1,29 +1,30 @@
 import type { Metadata } from "next";
-import { Inter, Roboto, Poppins } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
-import Script from "next/script";
+import AnimationProvider from "@/components/AnimationProvider";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { getSiteBaseUrl } from "@/lib/site-url";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const roboto = Roboto({ 
-  subsets: ["latin"], 
-  weight: ["100", "300", "400", "500", "700", "900"],
-  variable: "--font-roboto" 
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins",
+  display: "swap",
 });
-const poppins = Poppins({ 
-  subsets: ["latin"], 
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-poppins" 
-});
+
+const siteBaseUrl = getSiteBaseUrl();
+const metadataBase = new URL(siteBaseUrl);
+const canonicalSiteUrl = new URL("/", metadataBase).href;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXTAUTH_URL || "http://localhost:3000"),
+  metadataBase,
   title: "Ooty Baker & Confectioner - Premium Bakery in Bengaluru",
   description: "Welcome to Ooty Baker & Confectioner, your premium bakery in Bommanahalli, Bengaluru. We offer handcrafted Jelly, Candy, and Coated Candy made with love and finest ingredients.",
   keywords: "Ooty Baker, Confectioner, Bakery, Bengaluru, Bommanahalli, Jelly, Candy, Coated Candy, Premium Bakery",
   authors: [{ name: "Ooty Baker & Confectioner" }],
   openGraph: {
     type: "website",
-    url: "https://ootybaker.com/",
+    url: canonicalSiteUrl,
     title: "Ooty Baker & Confectioner - Premium Bakery in Bengaluru",
     description: "Welcome to Ooty Baker & Confectioner, your premium bakery in Bommanahalli, Bengaluru.",
     images: ["/images/brand-logo.png"],
@@ -46,67 +47,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${roboto.variable} ${poppins.variable}`}>
-      <body className={inter.className}>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                // Remove credentials from URL (security)
-                var urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('username') || urlParams.has('password')) {
-                  urlParams.delete('username');
-                  urlParams.delete('password');
-                  var redirect = urlParams.get('redirect');
-                  var newUrl = redirect 
-                    ? window.location.pathname + '?redirect=' + encodeURIComponent(redirect)
-                    : window.location.pathname;
-                  window.history.replaceState({}, '', newUrl);
-                }
-                
-                // Handle hash redirects
-                var hash = window.location.hash;
-                var pathname = window.location.pathname;
-                if (hash && hash.length > 0 && pathname && pathname !== '/') {
-                  window.location.replace('/' + hash);
-                }
-              })();
-            `,
-          }}
-        />
-        {children}
-        <Script 
-          src="https://unpkg.com/aos@next/dist/aos.js" 
-          strategy="afterInteractive"
-        />
-        <Script id="aos-init" strategy="afterInteractive">
-          {`
-            (function() {
-              function initAOS() {
-                if (typeof window !== 'undefined' && window.AOS) {
-                  try {
-                    if (!window.AOS.initialized) {
-                      window.AOS.init({ offset: 1 });
-                    }
-                  } catch (e) {
-                    console.error('AOS initialization error:', e);
-                  }
-                } else {
-                  // Retry after a short delay if AOS is not yet available
-                  setTimeout(initAOS, 100);
-                }
-              }
-              // Wait for DOM to be ready and AOS script to load
-              if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function() {
-                  setTimeout(initAOS, 300);
-                });
-              } else {
-                setTimeout(initAOS, 300);
-              }
-            })();
-          `}
-        </Script>
+    <html lang="en" className={poppins.variable}>
+      <body className={poppins.className}>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+        <AnimationProvider />
       </body>
     </html>
   );

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BiUser, BiLock, BiEnvelope, BiKey, BiArrowBack, BiCheckCircle } from "react-icons/bi";
+import Spinner from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type FormType = "login" | "forgotPassword" | "otp" | "resetPassword";
 
@@ -13,58 +15,7 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-
-  // Remove username/password from URL if present (security issue)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Use a synchronous check to remove credentials immediately
-      const urlParams = new URLSearchParams(window.location.search);
-      const hasCredentials = urlParams.has('username') || urlParams.has('password');
-      
-      if (hasCredentials) {
-        // Remove credentials from URL immediately
-        urlParams.delete('username');
-        urlParams.delete('password');
-        
-        // Keep only the redirect parameter if it exists
-        const redirect = urlParams.get('redirect');
-        const newUrl = redirect 
-          ? `/auth?redirect=${encodeURIComponent(redirect)}`
-          : '/auth';
-        
-        // Replace URL without credentials (use replace to avoid adding to history)
-        window.history.replaceState({}, '', newUrl);
-      }
-    }
-  }, []);
-
-  // Also check on mount and after navigation
-  useEffect(() => {
-    const checkAndCleanUrl = () => {
-      if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('username') || urlParams.has('password')) {
-          urlParams.delete('username');
-          urlParams.delete('password');
-          const redirect = urlParams.get('redirect');
-          const newUrl = redirect 
-            ? `/auth?redirect=${encodeURIComponent(redirect)}`
-            : '/auth';
-          window.history.replaceState({}, '', newUrl);
-        }
-      }
-    };
-    
-    // Check immediately
-    checkAndCleanUrl();
-    
-    // Also listen for popstate events (back/forward navigation)
-    window.addEventListener('popstate', checkAndCleanUrl);
-    
-    return () => {
-      window.removeEventListener('popstate', checkAndCleanUrl);
-    };
-  }, []);
+  const toast = useToast();
 
   const showForm = (formId: FormType) => {
     setCurrentForm(formId);
@@ -124,7 +75,7 @@ export default function AuthPage() {
       const data = await response.json();
 
       if (response.ok) {
-        alert("OTP sent to your email.");
+        toast.success("OTP sent", "Check your email for the verification code.");
         showForm("otp");
       } else {
         setError(data.error || "Failed to send OTP");
@@ -155,7 +106,7 @@ export default function AuthPage() {
       const data = await response.json();
 
       if (response.ok) {
-        alert("OTP verified");
+        toast.success("OTP verified", "You can now choose a new password.");
         showForm("resetPassword");
       } else {
         setError(data.error || "Invalid or expired OTP");
@@ -188,17 +139,24 @@ export default function AuthPage() {
       return;
     }
 
+    if (!otp) {
+      setError("OTP missing. Please restart the password reset flow.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset-password", email, password }),
+        body: JSON.stringify({ action: "reset-password", email, otp, password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        alert("Password reset successful!");
+        toast.success("Password updated", "You can now sign in with your new password.");
+        setOtp("");
         showForm("login");
       } else {
         setError(data.error || "Failed to reset password");
@@ -292,10 +250,7 @@ export default function AuthPage() {
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <Spinner />
                   Logging in...
                 </span>
               ) : (
@@ -360,10 +315,7 @@ export default function AuthPage() {
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <Spinner />
                   Sending...
                 </span>
               ) : (
@@ -429,10 +381,7 @@ export default function AuthPage() {
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <Spinner />
                   Verifying...
                 </span>
               ) : (
@@ -516,10 +465,7 @@ export default function AuthPage() {
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <Spinner />
                   Resetting...
                 </span>
               ) : (
