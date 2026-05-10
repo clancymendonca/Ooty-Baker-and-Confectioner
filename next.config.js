@@ -30,7 +30,8 @@ const imageRemotePatterns = [
  * because Tailwind's runtime style hooks and inline `style={{...}}` props
  * generate them; tightening this requires nonces. `connect-src` includes
  * Sentry's tunnel route under `/monitoring`, direct ingest (EU/US), Vercel
- * Live, and blob workers for Sentry replay on the client.
+ * Live, and blob workers for Sentry replay on the client. `frame-src`
+ * allows Vercel Live feedback iframes (otherwise `default-src` blocks them).
  */
 const csp = [
   "default-src 'self'",
@@ -40,6 +41,7 @@ const csp = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://vercel.live https://*.vercel.live",
   "worker-src 'self' blob:",
   "connect-src 'self' https://*.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://vercel.live https://*.vercel.live wss://vercel.live wss://*.vercel.live",
+  "frame-src 'self' https://vercel.live https://*.vercel.live",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

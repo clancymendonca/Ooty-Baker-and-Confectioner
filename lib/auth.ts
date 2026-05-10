@@ -82,7 +82,13 @@ export async function verifyOTP(email: string, otp: string): Promise<OTPVerifyRe
     return { ok: false, reason: "locked" };
   }
 
-  const matches = await bcrypt.compare(otp, user.otpCode);
+  let matches = false;
+  try {
+    matches = await bcrypt.compare(otp, user.otpCode);
+  } catch {
+    // Corrupt or non-bcrypt legacy values; treat as a failed attempt.
+    matches = false;
+  }
   if (!matches) {
     const nextAttempts = user.otpAttempts + 1;
     await prisma.user.update({

@@ -15,9 +15,14 @@ function generateOTP(): string {
 }
 
 async function sendOTPEmail(email: string, otp: string) {
+  if (!process.env.SMTP_HOST?.trim() || !process.env.SMTP_FROM?.trim()) {
+    logger.warn("OTP email skipped: SMTP_HOST or SMTP_FROM is not configured");
+    return;
+  }
+
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "587"),
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
     secure: false,
     auth: {
       user: process.env.SMTP_USER,
@@ -196,28 +201,36 @@ async function handleResetPassword(
 }
 
 export async function POST(request: NextRequest) {
-  let body: { action?: string; email?: string; otp?: string; password?: string };
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request format" }, { status: 400 });
-  }
+    let body: { action?: string; email?: string; otp?: string; password?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request format" }, { status: 400 });
+    }
 
-  const { action, email, otp, password } = body;
-  const ip = getClientIp(request);
+    const { action, email, otp, password } = body;
+    const ip = getClientIp(request);
 
-  if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
-  }
+    if (!email) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    }
 
-  switch (action) {
-    case "send-otp":
-      return handleSendOtp(email, ip);
-    case "verify-otp":
-      return handleVerifyOtp(email, otp ?? "", ip);
-    case "reset-password":
-      return handleResetPassword(email, otp ?? "", password ?? "", ip);
-    default:
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    switch (action) {
+      case "send-otp":
+        return await handleSendOtp(email, ip);
+      case "verify-otp":
+        return await handleVerifyOtp(email, otp ?? "", ip);
+      case "reset-password":
+        return await handleResetPassword(email, otp ?? "", password ?? "", ip);
+      default:
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
+  } catch (error) {
+    logger.error("OTP route unexpected error", error);
+    return NextResponse.json(
+      { error: "An error occurred. Please try again later." },
+      { status: 500 }
+    );
   }
 }
