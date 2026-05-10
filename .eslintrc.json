@@ -1,11 +1,7 @@
 {
-  "extends": [
-    "next/core-web-vitals",
-    "plugin:tailwindcss/recommended"
-  ],
+  "extends": ["next/core-web-vitals"],
   "plugins": ["import"],
   "rules": {
-    "@typescript-eslint/no-explicit-any": "warn",
     "import/order": [
       "warn",
       {
@@ -20,14 +16,9 @@
         "newlines-between": "always",
         "alphabetize": { "order": "asc", "caseInsensitive": true }
       }
-    ],
-    "tailwindcss/classnames-order": "off",
-    "tailwindcss/no-custom-classname": "off"
+    ]
   },
   "settings": {
-    "tailwindcss": {
-      "config": "tailwind.config.ts"
-    },
     "import/resolver": {
       "typescript": {
         "project": "./tsconfig.json"
