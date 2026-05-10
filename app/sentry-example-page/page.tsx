@@ -1,6 +1,7 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
+import Link from "next/link";
 import { useState } from "react";
 
 export default function SentryExamplePage() {
@@ -111,12 +112,12 @@ export default function SentryExamplePage() {
           </div>
 
           <div className="mt-6">
-            <a
+            <Link
               href="/"
               className="text-blue-600 hover:text-blue-800 underline"
             >
               ← Back to Home
-            </a>
+            </Link>
           </div>
         </div>
       </div>
