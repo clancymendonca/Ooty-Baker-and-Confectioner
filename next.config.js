@@ -75,8 +75,6 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
-    // Enable instrumentation hook for Sentry
-    instrumentationHook: true,
   },
 };
 
