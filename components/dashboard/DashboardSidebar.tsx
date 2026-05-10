@@ -12,6 +12,7 @@ interface DashboardSidebarProps {
   setCurrentSection: (section: DashboardSection) => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  userRole: string;
 }
 
 export default function DashboardSidebar({
@@ -19,6 +20,7 @@ export default function DashboardSidebar({
   setCurrentSection,
   isOpen,
   setIsOpen,
+  userRole,
 }: DashboardSidebarProps) {
   const router = useRouter();
 
@@ -139,26 +141,30 @@ export default function DashboardSidebar({
             </button>
 
             {/* Divider for admin */}
-            <div className="pt-2 pb-1">
-              <p className="text-xs font-semibold text-white/60 uppercase px-4 mb-2">Admin</p>
-            </div>
+            {(userRole === "developer" || userRole === "admin") && (
+              <>
+                <div className="pt-2 pb-1">
+                  <p className="text-xs font-semibold text-white/60 uppercase px-4 mb-2">Admin</p>
+                </div>
 
-            {/* User Management */}
-            <button
-              onClick={() => {
-                setCurrentSection("user-management");
-                setIsOpen(false);
-              }}
-              aria-current={currentSection === "user-management" ? "page" : undefined}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                currentSection === "user-management"
-                  ? "bg-primary text-white"
-                  : "text-white/90 hover:bg-white/10"
-              }`}
-            >
-              <i className="bx bx-user-plus text-xl"></i>
-              <span className="font-medium">User Management</span>
-            </button>
+                {/* User Management */}
+                <button
+                  onClick={() => {
+                    setCurrentSection("user-management");
+                    setIsOpen(false);
+                  }}
+                  aria-current={currentSection === "user-management" ? "page" : undefined}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    currentSection === "user-management"
+                      ? "bg-primary text-white"
+                      : "text-white/90 hover:bg-white/10"
+                  }`}
+                >
+                  <i className="bx bx-user-plus text-xl"></i>
+                  <span className="font-medium">User Management</span>
+                </button>
+              </>
+            )}
 
             {/* Divider for insights and settings */}
             <div className="pt-2 pb-1">

@@ -5,12 +5,13 @@ import { useState, useEffect, useCallback } from "react";
 interface ManagedUser {
   id: number;
   email: string;
-  isAdminCreated: boolean;
   createdAt: string;
+  role: string;
 }
 
-export default function UserManagement() {
+export default function UserManagement({ userRole }: { userRole: string }) {
   const [email, setEmail] = useState("");
+  const [selectedRole, setSelectedRole] = useState("user");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -31,6 +32,21 @@ export default function UserManagement() {
     }
   }, []);
 
+  const handleDeleteUser = async (id: number, emailToDelete: string) => {
+    if (!confirm(`Are you sure you want to delete user ${emailToDelete}?`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        fetchUsers();
+      } else {
+        alert(data.error || "Failed to delete user");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -46,7 +62,7 @@ export default function UserManagement() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), role: selectedRole }),
       });
       const data = await res.json();
 
@@ -94,14 +110,14 @@ export default function UserManagement() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label
-              htmlFor="new-user-email"
-              className="block text-sm font-medium text-foreground mb-1.5"
-            >
-              Email Address
-            </label>
-            <div className="flex gap-3">
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <label
+                htmlFor="new-user-email"
+                className="block text-sm font-medium text-foreground mb-1.5"
+              >
+                Email Address
+              </label>
               <input
                 id="new-user-email"
                 type="email"
@@ -111,33 +127,51 @@ export default function UserManagement() {
                 placeholder="staff@example.com"
                 required
                 disabled={isSubmitting}
-                className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:border-transparent transition disabled:opacity-60"
+                className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:border-transparent transition disabled:opacity-60"
                 style={
                   {
                     "--tw-ring-color": "#007A4D",
                   } as React.CSSProperties
                 }
               />
-              <button
-                id="create-user-submit"
-                type="submit"
-                disabled={isSubmitting || !email.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-95"
-                style={{ background: "#007A4D" }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Creating…
-                  </>
-                ) : (
-                  <>
-                    <i className="bx bx-send text-base" />
-                    Create &amp; Send
-                  </>
-                )}
-              </button>
             </div>
+            {userRole === "developer" && (
+              <div className="w-32">
+                <label htmlFor="new-user-role" className="block text-sm font-medium text-foreground mb-1.5">
+                  Role
+                </label>
+                <select
+                  id="new-user-role"
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:border-transparent transition disabled:opacity-60"
+                  style={{ "--tw-ring-color": "#007A4D" } as React.CSSProperties}
+                  disabled={isSubmitting}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            )}
+            <button
+              id="create-user-submit"
+              type="submit"
+              disabled={isSubmitting || !email.trim()}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-95 h-[42px]"
+              style={{ background: "#007A4D" }}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <i className="bx bx-send text-base" />
+                  Create &amp; Send
+                </>
+              )}
+            </button>
           </div>
 
           {/* Result banner */}
@@ -211,24 +245,32 @@ export default function UserManagement() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{u.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Added {new Date(u.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        Added {new Date(u.createdAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <span className="w-1 h-1 rounded-full bg-border" />
+                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {u.role}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
-                    u.isAdminCreated
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {u.isAdminCreated ? "Admin-created" : "Seed account"}
-                </span>
+                <div className="flex items-center gap-3">
+                  {(userRole === "developer" || (userRole === "admin" && u.role !== "developer")) && (
+                    <button
+                      onClick={() => handleDeleteUser(u.id, u.email)}
+                      className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors"
+                      title="Delete User"
+                    >
+                      <i className="bx bx-trash text-lg" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

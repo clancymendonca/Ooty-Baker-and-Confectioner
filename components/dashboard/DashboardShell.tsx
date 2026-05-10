@@ -27,7 +27,7 @@ function isDashboardSection(value: string | null): value is DashboardSection {
 }
 
 interface DashboardShellProps {
-  user: { id: number; email: string };
+  user: { id: number; email: string; role: string };
 }
 
 /**
@@ -61,6 +61,7 @@ export default function DashboardShell({ user: _user }: DashboardShellProps) {
         setCurrentSection={setCurrentSection}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
+        userRole={_user.role}
       />
       <div className="flex-1 flex flex-col lg:ml-64">
         <DashboardHeader setIsSidebarOpen={setIsSidebarOpen} currentSection={currentSection} />
@@ -74,7 +75,7 @@ export default function DashboardShell({ user: _user }: DashboardShellProps) {
           )}
           {currentSection === "banners" && <BannerManagement />}
           {currentSection === "analytics" && <Analytics />}
-          {currentSection === "user-management" && <UserManagement />}
+          {currentSection === "user-management" && (_user.role === "developer" || _user.role === "admin") && <UserManagement userRole={_user.role} />}
         </main>
       </div>
     </div>

@@ -15,5 +15,5 @@ export default async function DashboardPage() {
     redirect("/auth?redirect=/dashboard");
   }
 
-  return <DashboardShell user={{ id: session.id, email: session.email }} />;
+  return <DashboardShell user={{ id: session.id, email: session.email, role: session.role }} />;
 }
