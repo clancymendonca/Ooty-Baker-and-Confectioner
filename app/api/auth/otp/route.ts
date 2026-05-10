@@ -88,10 +88,9 @@ async function handleSendOtp(email: string, ip: string) {
     return dbErrorResponse(error, "Database error fetching user");
   }
 
-  // Only admin-created users can use forgot-password.
-  // If the user doesn't exist OR was not created by admin, return the same
+  // If the user doesn't exist return the same
   // generic message to avoid disclosing account existence.
-  if (!user || !user.isAdminCreated) {
+  if (!user) {
     return NextResponse.json({
       success: true,
       message: "If the account exists, a reset code has been sent.",

@@ -29,13 +29,13 @@ export async function createUser(email: string, password: string) {
 }
 
 /** Creates a user provisioned by an admin. These users can use forgot-password. */
-export async function createAdminUser(email: string, password: string) {
+export async function createAdminUser(email: string, password: string, role: string = "user") {
   const hashedPassword = await hashPassword(password);
   return prisma.user.create({
     data: {
       email,
       password: hashedPassword,
-      isAdminCreated: true,
+      role,
     },
   });
 }

@@ -7,6 +7,7 @@ import { createSessionToken, verifySessionToken } from "./session-token";
 export interface SessionUser {
   id: number;
   email: string;
+  role: string;
 }
 
 const SESSION_COOKIE_NAME = "auth_session";
@@ -69,7 +70,7 @@ export async function getSession(): Promise<SessionUser | null> {
     // Verify user still exists
     const user = await prisma.user.findUnique({
       where: { id: sessionData.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, role: true },
     });
 
     if (!user) {
@@ -77,7 +78,7 @@ export async function getSession(): Promise<SessionUser | null> {
       return null;
     }
 
-    return { id: user.id, email: user.email };
+    return { id: user.id, email: user.email, role: user.role };
   } catch (error: any) {
     logger.error("Session error", error);
     return null;

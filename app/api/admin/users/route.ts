@@ -8,6 +8,7 @@ import { getSession } from "@/lib/session";
 
 const createUserSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
+  role: z.enum(["admin", "user"]).optional().default("user"),
 });
 
 /** Generate a cryptographically-random password: 16 chars, mixed case + digits + symbols */
@@ -97,7 +98,7 @@ async function sendWelcomeEmail(email: string, password: string) {
 export async function POST(request: NextRequest) {
   // Verify the caller is an authenticated admin session
   const session = await getSession();
-  if (!session) {
+  if (!session || (session.role !== "developer" && session.role !== "admin")) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
@@ -123,6 +124,11 @@ export async function POST(request: NextRequest) {
   }
 
   const email = parsed.data.email.trim().toLowerCase();
+  let requestedRole = parsed.data.role;
+
+  if (session.role === "admin") {
+    requestedRole = "user"; // Admins can only create users
+  }
 
   // Check for existing user
   let existing;
@@ -143,7 +149,7 @@ export async function POST(request: NextRequest) {
 
   let newUser;
   try {
-    newUser = await createAdminUser(email, plainPassword);
+    newUser = await createAdminUser(email, plainPassword, requestedRole);
   } catch (error) {
     return dbErrorResponse(error, "Admin create user: DB error creating user");
   }
@@ -168,7 +174,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   // Verify the caller is an authenticated admin session
   const session = await getSession();
-  if (!session) {
+  if (!session || (session.role !== "developer" && session.role !== "admin")) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
@@ -181,8 +187,8 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         email: true,
-        isAdminCreated: true,
         createdAt: true,
+        role: true,
       },
       orderBy: { createdAt: "desc" },
     });

@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
 
     const user = await getUserByEmail(normalizedUsername);
 
-    // Only allow login for admin-created users (includes the original admin account).
-    // Return the same "Invalid credentials" to avoid disclosing account existence.
-    if (!user || !user.isAdminCreated) {
+    // Only allow login for users that exist
+    // Return "Invalid credentials" to avoid disclosing account existence.
+    if (!user) {
       return NextResponse.json(
         { success: false, error: "Invalid credentials" },
         { status: 401 }
