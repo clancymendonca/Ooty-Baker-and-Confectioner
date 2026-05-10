@@ -11,13 +11,15 @@ datasource db {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  email       String    @unique
-  password    String
-  otpCode     String?   @map("otp_code")
-  otpExpiry   DateTime? @map("otp_expiry")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  password        String
+  otpCode         String?   @map("otp_code")
+  otpExpiry       DateTime? @map("otp_expiry")
+  otpAttempts     Int       @default(0) @map("otp_attempts")
+  otpUsedAt       DateTime? @map("otp_used_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
   @@map("users")
 }
@@ -32,10 +34,11 @@ model Product {
   pricePerGram  Decimal?  @map("price_per_gram")
   vegStatus     String    @map("veg_status") // "Veg" or "Non-Veg"
   createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime? @default(now()) @updatedAt @map("updated_at")
-  
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
   inquiryProducts BusinessInquiryProduct[]
 
+  @@index([variety])
   @@map("products")
 }
 
@@ -53,13 +56,17 @@ model BusinessInquiry {
   status            String                  @default("new") // "new", "in-progress", "completed", "cancelled"
   staffNote         String?                @map("staff_note")
   createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @updatedAt @map("updated_at")
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
   deletedAt         DateTime?              @map("deleted_at")
   isDeleted         Boolean                @default(false) @map("is_deleted")
-  
+
   inquiryProducts BusinessInquiryProduct[]
   history         BusinessInquiryHistory[]
 
+  // Dashboard list/count queries always filter by isDeleted=false and
+  // sort/group by createdAt or status.
+  @@index([isDeleted, createdAt])
+  @@index([isDeleted, status])
   @@map("business_inquiries")
 }
 
