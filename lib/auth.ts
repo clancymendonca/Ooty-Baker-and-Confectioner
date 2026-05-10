@@ -28,6 +28,19 @@ export async function createUser(email: string, password: string) {
   });
 }
 
+/** Creates a user provisioned by an admin. These users can use forgot-password. */
+export async function createAdminUser(email: string, password: string) {
+  const hashedPassword = await hashPassword(password);
+  return prisma.user.create({
+    data: {
+      email,
+      password: hashedPassword,
+      isAdminCreated: true,
+    },
+  });
+}
+
+
 /**
  * Persist a new OTP for the user. The OTP is bcrypt-hashed before storage so a
  * leaked DB row can't be replayed against the verification endpoint, and the

@@ -84,7 +84,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protected routes that require authentication
-  const protectedRoutes = ["/dashboard", "/api/dashboard", "/api/inquiries", "/api/analytics"];
+  const protectedRoutes = ["/dashboard", "/api/dashboard", "/api/admin", "/api/inquiries", "/api/analytics"];
   const isMutatingProductsRoute =
     pathname.startsWith("/api/products") && request.method !== "GET";
   const isMutatingBannersRoute =

@@ -24,6 +24,7 @@ async function main() {
     data: {
       email: 'clancymendonca@gmail.com',
       password: hashedPassword,
+      isAdminCreated: true, // original admin — allowed to log in and use forgot-password
       otpCode: null,
       otpExpiry: null,
     },

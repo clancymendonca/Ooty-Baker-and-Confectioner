@@ -88,8 +88,10 @@ async function handleSendOtp(email: string, ip: string) {
     return dbErrorResponse(error, "Database error fetching user");
   }
 
-  if (!user) {
-    // Don't disclose account existence; response is generic and timing is similar.
+  // Only admin-created users can use forgot-password.
+  // If the user doesn't exist OR was not created by admin, return the same
+  // generic message to avoid disclosing account existence.
+  if (!user || !user.isAdminCreated) {
     return NextResponse.json({
       success: true,
       message: "If the account exists, a reset code has been sent.",
@@ -118,6 +120,7 @@ async function handleSendOtp(email: string, ip: string) {
     message: "If the account exists, a reset code has been sent.",
   });
 }
+
 
 async function handleVerifyOtp(email: string, otp: string, ip: string) {
   if (!otp) {

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
-type DashboardSection = "overview" | "business-inquiries" | "product" | "product-edit" | "banners" | "analytics";
+type DashboardSection = "overview" | "business-inquiries" | "product" | "product-edit" | "banners" | "analytics" | "user-management";
 
 interface DashboardSidebarProps {
   currentSection: DashboardSection;
@@ -138,9 +138,31 @@ export default function DashboardSidebar({
               <span className="font-medium">Products</span>
             </button>
 
+            {/* Divider for admin */}
+            <div className="pt-2 pb-1">
+              <p className="text-xs font-semibold text-white/60 uppercase px-4 mb-2">Admin</p>
+            </div>
+
+            {/* User Management */}
+            <button
+              onClick={() => {
+                setCurrentSection("user-management");
+                setIsOpen(false);
+              }}
+              aria-current={currentSection === "user-management" ? "page" : undefined}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                currentSection === "user-management"
+                  ? "bg-primary text-white"
+                  : "text-white/90 hover:bg-white/10"
+              }`}
+            >
+              <i className="bx bx-user-plus text-xl"></i>
+              <span className="font-medium">User Management</span>
+            </button>
+
             {/* Divider for insights and settings */}
             <div className="pt-2 pb-1">
-              <p className="text-xs font-semibold text-white/60 uppercase px-4 mb-2">Insights & Settings</p>
+              <p className="text-xs font-semibold text-white/60 uppercase px-4 mb-2">Insights &amp; Settings</p>
             </div>
 
             {/* Priority 4: Analytics */}

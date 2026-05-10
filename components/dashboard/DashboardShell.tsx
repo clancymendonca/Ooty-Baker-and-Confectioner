@@ -8,8 +8,9 @@ import ProductManagement from "@/components/dashboard/ProductManagement";
 import BannerManagement from "@/components/dashboard/BannerManagement";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import Analytics from "@/components/dashboard/Analytics";
+import UserManagement from "@/components/dashboard/UserManagement";
 
-type DashboardSection = "overview" | "business-inquiries" | "product" | "product-edit" | "banners" | "analytics";
+type DashboardSection = "overview" | "business-inquiries" | "product" | "product-edit" | "banners" | "analytics" | "user-management";
 
 const DASHBOARD_SECTIONS: DashboardSection[] = [
   "overview",
@@ -18,6 +19,7 @@ const DASHBOARD_SECTIONS: DashboardSection[] = [
   "product-edit",
   "banners",
   "analytics",
+  "user-management",
 ];
 
 function isDashboardSection(value: string | null): value is DashboardSection {
@@ -72,6 +74,7 @@ export default function DashboardShell({ user: _user }: DashboardShellProps) {
           )}
           {currentSection === "banners" && <BannerManagement />}
           {currentSection === "analytics" && <Analytics />}
+          {currentSection === "user-management" && <UserManagement />}
         </main>
       </div>
     </div>
