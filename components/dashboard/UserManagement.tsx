@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/ui/ToastProvider";
+import { BiUserPlus, BiSend, BiCheckCircle, BiErrorCircle, BiGroup, BiRefresh, BiUser, BiTrash } from "react-icons/bi";
 
 interface ManagedUser {
   id: number;
@@ -13,9 +15,9 @@ export default function UserManagement({ userRole }: { userRole: string }) {
   const [email, setEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState("user");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const toast = useToast();
 
   const fetchUsers = useCallback(async () => {
     setIsLoadingUsers(true);
@@ -56,7 +58,6 @@ export default function UserManagement({ userRole }: { userRole: string }) {
     if (!email.trim()) return;
 
     setIsSubmitting(true);
-    setResult(null);
 
     try {
       const res = await fetch("/api/admin/users", {
@@ -67,14 +68,14 @@ export default function UserManagement({ userRole }: { userRole: string }) {
       const data = await res.json();
 
       if (data.success) {
-        setResult({ type: "success", message: data.message });
+        toast.success("User Created", data.message);
         setEmail("");
         fetchUsers();
       } else {
-        setResult({ type: "error", message: data.error ?? "Something went wrong." });
+        toast.error("Error", data.error ?? "Something went wrong.");
       }
     } catch {
-      setResult({ type: "error", message: "Network error. Please try again." });
+      toast.error("Error", "Network error. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +99,7 @@ export default function UserManagement({ userRole }: { userRole: string }) {
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(0, 122, 77, 0.12)" }}
             >
-              <i className="bx bx-user-plus text-lg" style={{ color: "#007A4D" }} />
+              <BiUserPlus className="text-lg" style={{ color: "#007A4D" }} />
             </div>
             <div>
               <h2 className="font-semibold text-foreground text-sm">Create New User</h2>
@@ -167,28 +168,13 @@ export default function UserManagement({ userRole }: { userRole: string }) {
                 </>
               ) : (
                 <>
-                  <i className="bx bx-send text-base" />
+                  <BiSend className="text-base" />
                   Create &amp; Send
                 </>
               )}
             </button>
           </div>
 
-          {/* Result banner */}
-          {result && (
-            <div
-              className={`flex items-start gap-3 px-4 py-3 rounded-lg text-sm ${
-                result.type === "success"
-                  ? "bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800"
-                  : "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800"
-              }`}
-            >
-              <i
-                className={`bx ${result.type === "success" ? "bx-check-circle" : "bx-error-circle"} text-lg flex-shrink-0 mt-0.5`}
-              />
-              <span>{result.message}</span>
-            </div>
-          )}
         </form>
       </div>
 
@@ -200,7 +186,7 @@ export default function UserManagement({ userRole }: { userRole: string }) {
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(0, 122, 77, 0.12)" }}
             >
-              <i className="bx bx-group text-lg" style={{ color: "#007A4D" }} />
+              <BiGroup className="text-lg" style={{ color: "#007A4D" }} />
             </div>
             <div>
               <h2 className="font-semibold text-foreground text-sm">All Users</h2>
@@ -216,7 +202,7 @@ export default function UserManagement({ userRole }: { userRole: string }) {
             className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
             title="Refresh list"
           >
-            <i className={`bx bx-refresh text-xl ${isLoadingUsers ? "animate-spin" : ""}`} />
+            <BiRefresh className={`text-xl ${isLoadingUsers ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -226,7 +212,7 @@ export default function UserManagement({ userRole }: { userRole: string }) {
           </div>
         ) : users.length === 0 ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
-            <i className="bx bx-user text-4xl mb-2 block opacity-30" />
+            <BiUser className="text-4xl mb-2 mx-auto block opacity-30" />
             No users found. Create one above.
           </div>
         ) : (
@@ -267,7 +253,7 @@ export default function UserManagement({ userRole }: { userRole: string }) {
                       className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors"
                       title="Delete User"
                     >
-                      <i className="bx bx-trash text-lg" />
+                      <BiTrash className="text-lg" />
                     </button>
                   )}
                 </div>
