@@ -1,40 +1,87 @@
 import { PrismaClient } from "@prisma/client";
 
+import "./env"; // Validate environment at boot.
+import { logger } from "./logger";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Note: For Supabase in serverless environments (Vercel), use the connection pooler URL
-// Session mode (port 5432): Limited connections, good for long-running connections
-// Transaction mode (port 6543): More connections, better for serverless (recommended)
-// Direct connection URL format: postgresql://user:pass@host:5432/db
-// Transaction pooler URL format: postgresql://user:pass@host:6543/db?pgbouncer=true
-console.log("[PRISMA] Initializing Prisma client...");
-console.log("[PRISMA] DATABASE_URL exists:", !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-  const url = process.env.DATABASE_URL;
-  const portMatch = url.match(/:\d+\//);
-  const port = portMatch ? portMatch[0].slice(1, -1) : "unknown";
-  console.log("[PRISMA] Database port:", port, port === "6543" ? "(Transaction mode ✓)" : port === "5432" ? "(Session mode - limited connections)" : "");
-  console.log("[PRISMA] Has pgbouncer param:", url.includes("pgbouncer=true"));
+/**
+ * Supabase: serverless deployments must use the Transaction pooler (port
+ * 6543) with `pgbouncer=true`. The Session pooler (5432) hits client limits
+ * quickly under load. We auto-correct mistakes here as a defensive net.
+ */
+function getNormalizedDatabaseUrl(): string | undefined {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) return undefined;
+
+  try {
+    const parsed = new URL(rawUrl);
+    const isSupabasePooler = parsed.hostname.endsWith(".pooler.supabase.com");
+
+    if (isSupabasePooler && parsed.port === "5432") {
+      parsed.port = "6543";
+      if (!parsed.searchParams.has("pgbouncer")) {
+        parsed.searchParams.set("pgbouncer", "true");
+      }
+      logger.warn(
+        "DATABASE_URL used Supabase session pooler (5432). Auto-switched to transaction pooler (6543) with pgbouncer=true."
+      );
+      return parsed.toString();
+    }
+
+    if (
+      isSupabasePooler &&
+      parsed.port === "6543" &&
+      !parsed.searchParams.has("pgbouncer")
+    ) {
+      parsed.searchParams.set("pgbouncer", "true");
+      logger.warn("Added missing pgbouncer=true to Supabase transaction pooler URL.");
+      return parsed.toString();
+    }
+  } catch {
+    // Keep raw URL if parsing fails; Prisma will report a usable error.
+  }
+
+  return rawUrl;
 }
+
+const normalizedDatabaseUrl = getNormalizedDatabaseUrl();
+
+if (!globalForPrisma.prisma) {
+  if (normalizedDatabaseUrl) {
+    const portMatch = normalizedDatabaseUrl.match(/:(\d+)\//);
+    const port = portMatch ? portMatch[1] : "unknown";
+    logger.info("Prisma client init", {
+      port,
+      mode: port === "6543" ? "transaction" : port === "5432" ? "session" : "unknown",
+      pgbouncer: normalizedDatabaseUrl.includes("pgbouncer=true"),
+    });
+  } else {
+    logger.warn("Prisma client init without DATABASE_URL");
+  }
+}
+
+const shouldLogQueries = process.env.PRISMA_LOG_QUERIES === "1";
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    log: shouldLogQueries
+      ? ["query", "error", "warn"]
+      : process.env.NODE_ENV === "development"
+        ? ["error", "warn"]
+        : ["error"],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: normalizedDatabaseUrl,
       },
     },
   });
 
-console.log("[PRISMA] Prisma client initialized");
-
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-// Properly disconnect Prisma on process termination
 if (process.env.NODE_ENV === "production") {
   process.on("beforeExit", async () => {
     await prisma.$disconnect();

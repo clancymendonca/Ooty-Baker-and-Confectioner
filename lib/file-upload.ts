@@ -39,87 +39,65 @@ export function validateFile(file: { size: number; mimetype: string }): { valid:
  * Save uploaded file (uses Supabase if configured, otherwise local storage)
  */
 export async function saveFile(file: { buffer: Buffer; originalFilename: string; mimetype?: string }): Promise<UploadResult> {
-  console.log("[FILE UPLOAD] Starting file upload:", {
+  logger.info("File upload start", {
     filename: file.originalFilename,
     size: file.buffer.length,
     mimetype: file.mimetype,
-    isVercel: !!process.env.VERCEL
   });
 
-  // Validate first
   const validation = validateFile({
     size: file.buffer.length,
     mimetype: file.mimetype || "image/jpeg",
   });
 
   if (!validation.valid) {
-    console.error("[FILE UPLOAD] Validation failed:", validation.error);
     return { success: false, error: validation.error };
   }
 
-  console.log("[FILE UPLOAD] Validation passed");
-
   // Priority: Vercel Blob > Supabase > Local Storage
-  // 1. Try Vercel Blob first (best for Vercel deployments)
-  const vercelBlobConfigured = isVercelBlobConfigured();
-  console.log("[FILE UPLOAD] Vercel Blob configured:", vercelBlobConfigured);
-
-  if (vercelBlobConfigured && file.mimetype) {
-    console.log("[FILE UPLOAD] Using Vercel Blob Storage");
+  if (isVercelBlobConfigured() && file.mimetype) {
     try {
       const result = await uploadToVercelBlob({
         buffer: file.buffer,
         originalFilename: file.originalFilename,
         mimetype: file.mimetype,
       });
-      console.log("[FILE UPLOAD] Vercel Blob upload result:", result);
       if (result.success) {
         return result;
       }
-      // If Vercel Blob fails, fall through to next option
-      console.warn("[FILE UPLOAD] Vercel Blob upload failed, trying fallback:", result.error);
-    } catch (error: any) {
-      console.error("[FILE UPLOAD] Vercel Blob upload error:", error);
-      // Fall through to next option
+      logger.warn("Vercel Blob upload failed; trying next backend", { error: result.error });
+    } catch (error) {
+      logger.error("Vercel Blob upload error", error);
     }
   }
 
-  // 2. Try Supabase Storage as fallback
-  const supabaseConfigured = isSupabaseConfigured();
-  console.log("[FILE UPLOAD] Supabase configured:", supabaseConfigured);
-
-  if (supabaseConfigured && file.mimetype) {
-    console.log("[FILE UPLOAD] Using Supabase Storage");
+  if (isSupabaseConfigured() && file.mimetype) {
     try {
       const result = await uploadToSupabase({
         buffer: file.buffer,
         originalFilename: file.originalFilename,
         mimetype: file.mimetype,
       });
-      console.log("[FILE UPLOAD] Supabase upload result:", result);
       if (result.success) {
         return result;
       }
-      // If Supabase fails, fall through to local storage
-      console.warn("[FILE UPLOAD] Supabase upload failed, trying local storage:", result.error);
-    } catch (error: any) {
-      console.error("[FILE UPLOAD] Supabase upload error:", error);
-      // Fall through to local storage
+      logger.warn("Supabase upload failed; trying local storage", { error: result.error });
+    } catch (error) {
+      logger.error("Supabase upload error", error);
     }
   }
 
-  // 3. Fallback to local storage (only works in development, not on Vercel)
-  // On Vercel, filesystem is read-only except /tmp, so cloud storage must be configured
+  // Local storage fallback only works in dev. On Vercel the filesystem is
+  // read-only outside /tmp, so we must require cloud storage there.
   if (process.env.VERCEL) {
-    console.error("[FILE UPLOAD] Vercel detected but no cloud storage configured");
+    logger.error("Vercel detected but no cloud storage configured", {});
     return {
       success: false,
-      error: "File uploads require cloud storage. Please configure either Vercel Blob (BLOB_READ_WRITE_TOKEN) or Supabase Storage (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY).",
-      hint: "Vercel Blob: Get token from Vercel Dashboard → Storage → Blob → Settings. Supabase: Create storage bucket in Supabase dashboard."
+      error:
+        "File uploads require cloud storage. Configure Vercel Blob (BLOB_READ_WRITE_TOKEN) or Supabase Storage (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY).",
+      hint: "Vercel Blob: Vercel Dashboard -> Storage -> Blob -> Settings. Supabase: create the storage bucket in Supabase dashboard.",
     };
   }
-
-  console.log("[FILE UPLOAD] Using local storage fallback");
 
   try {
     // Ensure upload directory exists
